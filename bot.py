@@ -6,7 +6,7 @@ import time
 # הגדרות הבוט - הטוקן החדש שלך
 TOKEN = "8748416579:AAHLGyHreoktN10FSReH_nAUguVseDSli48"
 # ה-ID של הערוץ Global Disaster
-CHAT_ID = "-1002405271427"  
+CHAT_ID = "-2405271"  
 
 bot = telebot.TeleBot(TOKEN)
 
