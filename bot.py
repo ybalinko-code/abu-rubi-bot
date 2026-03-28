@@ -13,17 +13,22 @@ FIRMS_KEY = "6228ccc298bd27845097cfe9995b3dfe"
 processed_ids = set()
 last_update_id = 0
 
-COUNTRIES_HEB = {"GR": "יוון", "BR": "ברזיל", "TR": "טורקיה", "US": "ארה\"ב", "IL": "ישראל", "UA": "אוקראינה", "RU": "רוסיה", "IR": "איראן", "SY": "סוריה", "LB": "לבנון"}
-OSINT_KEYWORDS = ['shooting', 'explosion', 'blast', 'attack', 'terror', 'missile', 'airstrike', 'nuclear', 'hostage', 'assassination', 'killed', 'emergency', 'squawk 7700']
+COUNTRIES_HEB = {"GR": "יוון", "BR": "ברזיל", "TR": "טורקיה", "US": "ארה\"ב", "IL": "ישראל", "UA": "אוקראינה", "RU": "רוסיה", "IR": "איראן", "SY": "סוריה", "LB": "לבנון", "IQ": "עיראק", "YE": "תימן"}
+
+# רשימת מילים מורחבת לרגישות גבוהה
+OSINT_KEYWORDS = [
+    'shooting', 'explosion', 'blast', 'attack', 'terror', 'missile', 'airstrike', 
+    'nuclear', 'hostage', 'assassination', 'killed', 'emergency', 'squawk 7700',
+    'alert', 'clash', 'riot', 'hijack', 'intercept', 'explosive device', 'security incident'
+]
 
 class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Abu Rubi Master OSINT Bot Active")
+        self.wfile.write(b"Abu Rubi Master OSINT Bot - High Sensitivity")
 
 def send_verified_msg(content):
-    # תיקון לשעון ישראל (UTC+3)
     dt = (datetime.utcnow() + timedelta(hours=3)).strftime('%d/%m/%Y %H:%M')
     msg = f"Verified\n{dt}\n\n{content}"
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
@@ -39,7 +44,7 @@ def check_commands():
             last_update_id = update["update_id"]
             if "message" in update and "text" in update["message"]:
                 if update["message"]["text"] == "/test":
-                    send_verified_msg("🚀 **בדיקת מערכת אבו רובי**\n\nהמערכת פעילה ומנטרת:\n✅ NASA (שריפות)\n✅ USGS (רעידות)\n✅ OSINT (מבזקים)\n⏰ שעון ישראל תוקן!")
+                    send_verified_msg("🚀 **בדיקת מערכת אבו רובי - רגישות גבוהה**\n\nהמערכת סורקת עם מילות מפתח מורחבות.\n✅ סטטוס: Online")
     except: pass
 
 def check_usgs():
@@ -68,13 +73,14 @@ def check_fires():
     except: pass
 
 def check_news_osint():
-    feeds = ["https://bnonews.com/index.php/feed/", "https://www.reutersagency.com/feed/"]
+    feeds = ["https://bnonews.com/index.php/feed/", "https://www.reutersagency.com/feed/", "https://apnews.com/hub/world-news.rss"]
     for url in feeds:
         try:
             res = requests.get(url, timeout=15)
             root = ET.fromstring(res.content)
             for item in root.findall('.//item'):
-                title, link = item.find('title').text, item.find('link').text
+                title = item.find('title').text
+                link = item.find('link').text
                 if any(word in title.lower() for word in OSINT_KEYWORDS) and link not in processed_ids:
                     send_verified_msg(f"📢 **מבזק ביטחוני / OSINT**\n{title}\n\n🔗 [מקור]({link})")
                     processed_ids.add(link)
