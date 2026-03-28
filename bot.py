@@ -1,51 +1,41 @@
 import telebot
 import requests
-import feedparser
 import time
+import threading
 
-# הגדרות הבוט - הטוקן החדש שלך
 TOKEN = "8748416579:AAHLGyHreoktN10FSReH_nAUguVseDSli48"
-# ה-ID של הערוץ Global Disaster
-CHAT_ID = "-2405271"  
+CHAT_ID = "2405271"
 
 bot = telebot.TeleBot(TOKEN)
-
-# זיכרון זמני למניעת כפילויות
-sent_reports = set()
+last_disaster = None
 
 def check_disasters():
-    print("סורק אירועים...")
-    
-    # 1. סריקת רעידות אדמה (USGS)
+    global last_disaster
+    print("Sourcing disaster data...")
     try:
-        earthquake_url = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.atom"
-        feed = feedparser.parse(earthquake_url)
-        for entry in feed.entries:
-            if entry.id not in sent_reports:
-                msg = f"🌍 **דיווח על רעידת אדמה**\n\n📍 מיקום: {entry.title}\n📅 זמן: {entry.updated}\n🔗 פרטים נוספים: {entry.link}"
-                bot.send_message(CHAT_ID, msg, parse_mode="Markdown")
-                sent_reports.add(entry.id)
+        response = requests.get("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson", timeout=10)
+        data = response.json()
+        if data['features']:
+            latest = data['features'][0]['properties']
+            event_id = data['features'][0]['id']
+            
+            if event_id != last_disaster:
+                last_disaster = event_id
+                msg = f"⚠️ התראת רעידת אדמה!\n\nמקום: {latest['place']}\nעוצמה: {latest['mag']}\nזמן: {time.ctime(latest['time']/1000)}"
+                bot.send_message(CHAT_ID, msg)
     except Exception as e:
-        print(f"שגיאה בסריקת רעידות אדמה: {e}")
+        print(f"Error: {e}")
 
-    # 2. סריקת אסונות טבע כלליים (GDACS)
-    try:
-        gdacs_url = "https://www.gdacs.org/xml/rss.xml"
-        feed = feedparser.parse(gdacs_url)
-        for entry in feed.entries:
-            if entry.id not in sent_reports:
-                msg = f"⚠️ **התראה על אסון טבע בעולם**\n\n🚨 אירוע: {entry.title}\n🔗 לפרטים ב-Global Disaster: {entry.link}"
-                bot.send_message(CHAT_ID, msg, parse_mode="Markdown")
-                sent_reports.add(entry.id)
-    except Exception as e:
-        print(f"שגיאה בסריקת אסונות טבע: {e}")
-
-# לולאת ריצה
-if __name__ == "__main__":
-    print("הבוט של אבו-רובי התחיל לעבוד!")
-    while True:
-        check_disasters()
-        time.sleep(300)  # סריקה כל 5 דקות
 @bot.message_handler(commands=['start', 'test'])
 def send_welcome(message):
     bot.reply_to(message, "הבוט פעיל ומחובר אליך, אבו רובי! סריקת האסונות רצה ברקע.")
+
+def run_scanner():
+    while True:
+        check_disasters()
+        time.sleep(300)
+
+if __name__ == "__main__":
+    threading.Thread(target=run_scanner, daemon=True).start()
+    print("Bot is starting...")
+    bot.infinity_polling()
