@@ -2,6 +2,8 @@ import telebot
 import requests
 import time
 import threading
+import os
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 TOKEN = "8748416579:AAHLGyHreoktN10FSReH_nAUguVseDSli48"
 CHAT_ID = "2405271"
@@ -35,7 +37,23 @@ def run_scanner():
         check_disasters()
         time.sleep(300)
 
+# זה שרת הדמה שמרגיע את Render
+class DummyHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is alive!")
+
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), DummyHandler)
+    server.serve_forever()
+
 if __name__ == "__main__":
+    # מפעיל את הסורק
     threading.Thread(target=run_scanner, daemon=True).start()
+    # מפעיל את שרת הדמה
+    threading.Thread(target=run_dummy_server, daemon=True).start()
+    
     print("Bot is starting...")
     bot.infinity_polling()
