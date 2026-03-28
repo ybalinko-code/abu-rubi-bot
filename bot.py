@@ -3,7 +3,7 @@ import time
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # --- הגדרות גישה ---
 TOKEN = "8748416579:AAHLGyHreoktN10FSReH_nAUguVseDSli48"
@@ -13,7 +13,7 @@ FIRMS_KEY = "6228ccc298bd27845097cfe9995b3dfe"
 processed_ids = set()
 last_update_id = 0
 
-COUNTRIES_HEB = {"GR": "יוון", "BR": "ברזיל", "TR": "טורקיה", "US": "ארה\"ב", "IL": "ישראל", "UA": "אוקראינה", "RU": "רוסיה", "IR": "איראן"}
+COUNTRIES_HEB = {"GR": "יוון", "BR": "ברזיל", "TR": "טורקיה", "US": "ארה\"ב", "IL": "ישראל", "UA": "אוקראינה", "RU": "רוסיה", "IR": "איראן", "SY": "סוריה", "LB": "לבנון"}
 OSINT_KEYWORDS = ['shooting', 'explosion', 'blast', 'attack', 'terror', 'missile', 'airstrike', 'nuclear', 'hostage', 'assassination', 'killed', 'emergency', 'squawk 7700']
 
 class DummyServer(BaseHTTPRequestHandler):
@@ -23,13 +23,13 @@ class DummyServer(BaseHTTPRequestHandler):
         self.wfile.write(b"Abu Rubi Master OSINT Bot Active")
 
 def send_verified_msg(content):
-    dt = datetime.now().strftime('%d/%m/%Y %H:%M')
+    # תיקון לשעון ישראל (UTC+3)
+    dt = (datetime.utcnow() + timedelta(hours=3)).strftime('%d/%m/%Y %H:%M')
     msg = f"Verified\n{dt}\n\n{content}"
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     try: requests.post(url, json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}, timeout=15)
     except: pass
 
-# --- מנגנון בדיקה ללא נגיעה בקוד ---
 def check_commands():
     global last_update_id
     url = f"https://api.telegram.org/bot{TOKEN}/getUpdates?offset={last_update_id + 1}"
@@ -39,7 +39,7 @@ def check_commands():
             last_update_id = update["update_id"]
             if "message" in update and "text" in update["message"]:
                 if update["message"]["text"] == "/test":
-                    send_verified_msg("🚀 **בדיקת מערכת אבו רובי**\n\nהמערכת פעילה ומנטרת:\n✅ NASA (שריפות)\n✅ USGS (רעידות)\n✅ OSINT (מבזקים)")
+                    send_verified_msg("🚀 **בדיקת מערכת אבו רובי**\n\nהמערכת פעילה ומנטרת:\n✅ NASA (שריפות)\n✅ USGS (רעידות)\n✅ OSINT (מבזקים)\n⏰ שעון ישראל תוקן!")
     except: pass
 
 def check_usgs():
@@ -83,9 +83,9 @@ def check_news_osint():
 if __name__ == "__main__":
     threading.Thread(target=lambda: HTTPServer(('0.0.0.0', 8080), DummyServer).serve_forever(), daemon=True).start()
     while True:
-        check_commands() # בודק אם שלחת /test
+        check_commands()
         check_usgs()
         check_fires()
         check_news_osint()
         if len(processed_ids) > 1000: processed_ids.clear()
-        time.sleep(60) # סריקה מהירה יותר כדי להגיב לפקודת ה-test
+        time.sleep(60)
