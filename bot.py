@@ -46,3 +46,6 @@ if __name__ == "__main__":
     while True:
         check_disasters()
         time.sleep(300)  # סריקה כל 5 דקות
+@bot.message_handler(commands=['start', 'test'])
+def send_welcome(message):
+    bot.reply_to(message, "הבוט פעיל ומחובר אליך, אבו רובי! סריקת האסונות רצה ברקע.")
