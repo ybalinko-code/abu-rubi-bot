@@ -23,21 +23,31 @@ def check_disasters():
             
             if event_id != last_disaster:
                 last_disaster = event_id
-                msg = f"⚠️ התראת רעידת אדמה!\n\nמקום: {latest['place']}\nעוצמה: {latest['mag']}\nזמן: {time.ctime(latest['time']/1000)}"
-                bot.send_message(CHAT_ID, msg)
+                
+                place = str(latest.get('place', ''))
+                mag = float(latest.get('mag', 0.0))
+                
+                # מסנן העוצמה
+                is_israel = "Israel" in place or "israel" in place.lower()
+                
+                if (is_israel and mag >= 4.0) or (not is_israel and mag >= 5.8):
+                    msg = f"⚠️ התראת רעידת אדמה!\n\nמקום: {place}\nעוצמה: {mag}\nזמן: {time.ctime(latest['time']/1000)}"
+                    bot.send_message(CHAT_ID, msg)
+                else:
+                    print(f"Filtered out (Too weak): {place} - Mag: {mag}")
     except Exception as e:
         print(f"Error: {e}")
 
 @bot.message_handler(commands=['start', 'test'])
 def send_welcome(message):
-    bot.reply_to(message, "הבוט פעיל ומחובר אליך, אבו רובי! סריקת האסונות רצה ברקע.")
+    bot.reply_to(message, "הבוט פעיל ומחובר אליך, אבו רובי! סריקת האסונות רצה ברקע ומוגדרת לפי מסנן עוצמות.")
 
 def run_scanner():
     while True:
         check_disasters()
         time.sleep(300)
 
-# זה שרת הדמה שמרגיע את Render
+# שרת דמה עבור Render
 class DummyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -50,9 +60,7 @@ def run_dummy_server():
     server.serve_forever()
 
 if __name__ == "__main__":
-    # מפעיל את הסורק
     threading.Thread(target=run_scanner, daemon=True).start()
-    # מפעיל את שרת הדמה
     threading.Thread(target=run_dummy_server, daemon=True).start()
     
     print("Bot is starting...")
