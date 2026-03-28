@@ -1,0 +1,24 @@
+import requests
+import feedparser
+import time
+
+TOKEN = "8606760571:AAFmbFC80IooorCZ5RaBEAKw4NavukcjNdQ"
+CHAT_ID = "2405271"
+
+# מקורות הדיווח שלך
+FEEDS = [
+    "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.atom",
+    "https://www.gdacs.org/xml/rss.xml"
+]
+
+def run_monitor():
+    for url in FEEDS:
+        feed = feedparser.parse(url)
+        if feed.entries:
+            item = feed.entries[0]
+            msg = f"🔴 **דיווח מתפרץ**\n\n📍 {item.title}\n\n🕒 {time.strftime('%d/%m %H:%M')}\n🔗 [לפרטים נוספים]({item.link})"
+            requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
+                          data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
+
+if __name__ == "__main__":
+    run_monitor()
