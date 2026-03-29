@@ -1,52 +1,80 @@
-import os, html, asyncio, threading, requests
+import os
+import asyncio
 from flask import Flask
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+from googletrans import Translator
 
-# --- 1. שרת Flask בסיסי ---
+# הגדרת שרת Flask עבור Render
 app = Flask(__name__)
+
 @app.route('/')
-def health(): return "OK", 200
-def run_flask():
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+def health_check():
+    return "Bot is running!", 200
 
-# --- 2. פונקציית תרגום חסינה (ללא ספריות חיצוניות) ---
-def translate_text(text):
+# מילון שמות המקורות (אנגלית לעברית)
+SOURCE_MAPPING = {
+    "arielidan14": "אריאל עידן",
+    "Intellinews": "אינטליניוז",
+    "HallelBittonRosen": "הלל ביטון רוזן",
+    "AlmogBoker": "אלמוג בוקר",
+    "yosiyehoshua": "יוסי יהושוע",
+    "AJA_Palestine": "אל-ג'זירה פלסטין",
+    "GazaNowNewsletter": "עזה עכשיו",
+    "shehabagency": "סוכנות שהאב",
+    "hamasps": "חמאס (רשמי)"
+}
+
+translator = Translator()
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text:
+        return
+
+    original_text = update.message.text
+    
+    # זיהוי המקור (מתוך הודעה מועברת או שם המשתמש)
+    raw_source = "מקור לא ידוע"
+    if update.message.forward_from_chat:
+        raw_source = update.message.forward_from_chat.username or update.message.forward_from_chat.title
+    elif update.message.forward_from:
+        raw_source = update.message.forward_from.username or update.message.forward_from.first_name
+    
+    # החלפת השם לעברית לפי המילון
+    display_source = SOURCE_MAPPING.get(raw_source, raw_source)
+
     try:
-        # שימוש ב-API חופשי ומהיר שלא דורש התקנה
-        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=iw&dt=t&q={text}"
-        r = requests.get(url)
-        return "".join([s[0] for s in r.json()[0]])
-    except: return text
+        # תרגום אוטומטי לעברית
+        detection = translator.detect(original_text)
+        if detection.lang != 'he':
+            translation = translator.translate(original_text, dest='he')
+            final_text = f"**מקור: {display_source}**\n\n{translation.text}\n\n(תרגום אוטומטי)"
+        else:
+            final_text = f"**מקור: {display_source}**\n\n{original_text}"
+        
+        await update.message.reply_text(final_text, parse_mode='Markdown')
+    except Exception as e:
+        await update.message.reply_text(f"**מקור: {display_source}**\n\n{original_text}")
 
-# --- 3. לוגיקת הבוט ---
-SOURCE_MAPPING = {"arielidan14": "אריאל עידן", "HallelBittonRosen": "הלל ביטון רוזן"}
-
-async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.channel_post or update.message
-    if not msg or not (msg.text or msg.caption): return
-    
-    raw = msg.text or msg.caption
-    source = SOURCE_MAPPING.get(update.effective_chat.username, update.effective_chat.username or "מקור חוץ")
-    
-    # תרגום אוטומטי
-    translated = translate_text(raw)
-    final = f"**מקור:** {source}\n\n{translated}"
-    if translated != raw: final += "\n\n*(תרגום אוטומטי)*"
-
-    await context.bot.send_message(chat_id="2405271", text=final, parse_mode='Markdown')
-
-# --- 4. התנעה ---
 async def main():
-    token = "8748416579:AAF1ljRu-D2DWoTlxlZ254a0a8YPk_ZYmeo"
-    app_bot = ApplicationBuilder().token(token).build()
-    app_bot.add_handler(MessageHandler(filters.ALL, handle_msg))
-    async with app_bot:
-        await app_bot.initialize()
-        await app_bot.start()
-        await app_bot.updater.start_polling()
-        await asyncio.Event().wait()
+    # שים כאן את ה-Token שלך
+    TOKEN = "7724103132:AAH9E9v1u_j8_G09Z9Z9Z9Z9Z9Z9Z9Z9Z9Z" # וודא שזה הטוקן הנכון
+    application = ApplicationBuilder().token(TOKEN).build()
+    
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
+    
+    # הפעלת Flask בפורט ש-Render דורש
+    import threading
+    port = int(os.environ.get("PORT", 10000))
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=port)).start()
+    
+    # השארת הבוט רץ
+    while True:
+        await asyncio.sleep(1)
 
 if __name__ == '__main__':
-    threading.Thread(target=run_flask, daemon=True).start()
     asyncio.run(main())
