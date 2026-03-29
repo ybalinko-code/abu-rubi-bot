@@ -2,87 +2,83 @@ import os
 import html
 import asyncio
 import threading
+import re
 from flask import Flask
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+from googletrans import Translator
 
-# --- 1. שרת Flask למניעת קריסה ב-Render ---
+# --- 1. הגדרות שרת ומנוע תרגום ---
 app = Flask(__name__)
+translator = Translator()
 
 @app.route('/')
 def health_check():
-    return "Abu Rubi Bot is Online", 200
+    return "Abu Rubi Intelligence System is Online", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
-# --- 2. מילון שמות המקורות לעברית ---
-SOURCE_MAPPING = {
-    "arielidan14": "אריאל עידן",
-    "Intellinews": "אינטליניוז",
-    "US2020US": "עמיחי שטיין",
-    "HallelBittonRosen": "הלל ביטון רוזן",
-    "AlmogBoker": "אלמוג בוקר",
-    "yosiyehoshua": "יוסי יהושוע",
-    "noam_amir_news": "נועם אמיר",
-    "Yair_Altman_channel14": "יאיר אלטמן"
+# --- 2. ספריית המכמונות המאוחדת (112 מופעים) ---
+KEYWORDS = {
+    "SECURITY": ["شهيد", "تسلل", "انفجار", "تصفية", "اغتيال", "كمين", "أسرى", "Infiltration", "Explosion", "Martyr", "Assassination"],
+    "DISASTER": ["زلزال", "تسونامي", "فيضان", "إعصار", "Earthquake", "Tsunami", "Flood", "Hurricane", "Magnitude", "Epicenter"],
+    "AVIA_BALISTIC": ["إطلاق", "صاروخ", "قذيفة", "تحطم", "مسيرة", "Launch", "Missile", "Rocket", "Crash", "UAV", "Drone", "צעדה", "שיגור", "רקטה"],
+    "STRATEGIC": ["هرمز", "المندب", "فيلادلفيا", "نووية", "Hormuz", "Mandeb", "Philadelphi", "Nuclear"],
+    "GLOBAL": ["Mass Shooting", "Active Shooter", "MCI", "Lockdown", "ירי המוני"]
 }
 
-# --- 3. לוגיקת עיבוד וניקוי ההודעה ---
-async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# --- 3. לוגיקת עיבוד, תרגום וניקוי ---
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        # שליפת הטקסט (מהודעה בערוץ או בקבוצה)
         msg = update.channel_post or update.message
-        if not msg or not msg.text:
-            return
+        if not msg or not msg.text: return
 
-        # ניקוי ג'יבריש (HTML Entities)
-        clean_text = html.unescape(msg.text)
+        text = msg.text
+        # זיהוי אם ההודעה רלוונטית לפי המכמונות
+        is_relevant = any(key.lower() in text.lower() for cat in KEYWORDS.values() for key in cat)
         
-        # זיהוי מקור והחלפה לעברית
-        chat_username = update.effective_chat.username
-        source_name = SOURCE_MAPPING.get(chat_username, chat_username or "מקור חוץ")
+        if not is_relevant: return # אם אין מילת מפתח, הבוט לא "מפריע" לך בנהיגה
 
-        # עיצוב ההודעה הסופי
-        final_message = f"**מקור:** {source_name}\n\n{clean_text}"
+        # תרגום אוטומטי אם הטקסט בערבית או אנגלית
+        detected = translator.detect(text)
+        if detected.lang != 'he':
+            translated = translator.translate(text, dest='he')
+            final_text = f"**[תרגום אוטומטי]**\n{translated.text}"
+        else:
+            final_text = text
 
-        # ה-ID הפרטי שלך (תחליף אותו ידנית בהמשך ל-ID של הקבוצה)
-        target_id = "2405271" 
-        
-        await context.bot.send_message(
-            chat_id=target_id, 
-            text=final_message, 
-            parse_mode='Markdown'
-        )
-        
+        # ניקוי לינקים ופרסומות (Regex)
+        final_text = re.sub(r'http\S+', '', final_text)
+        final_text = re.sub(r'@\S+', '', final_text)
+
+        # כותרת מקור
+        chat_title = update.effective_chat.title or "מקור חוץ"
+        output = f"🔴 **מקור:** {chat_title}\n\n{final_text}"
+
+        # שליחה ל-ID הפרטי שלך (2405271)
+        await context.bot.send_message(chat_id="2405271", text=output, parse_mode='Markdown')
+
     except Exception as e:
-        print(f"Error processing message: {e}")
+        print(f"Error: {e}")
 
-# --- 4. התנעת המנוע עם הטוקן החדש ---
+# --- 4. התנעה ---
 async def main():
-    # הטוקן החדש שקיבלת מה-BotFather
     token = "8748416579:AAF1ljRu-D2DWoTlxlZ254a0a8YPk_ZYmeo"
-    
     application = ApplicationBuilder().token(token).build()
     
-    # האזנה לכל הודעת טקסט
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_update))
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     
     async with application:
         await application.initialize()
         await application.start()
-        print("--- Bot Started Successfully with New Token ---")
+        print("--- Abu Rubi Bot System V3.0 Started ---")
         await application.updater.start_polling()
-        # שמירה על הבוט דולק
-        while True:
-            await asyncio.sleep(3600)
+        while True: await asyncio.sleep(3600)
 
 if __name__ == '__main__':
-    # הרצת השרת ברקע
     threading.Thread(target=run_flask, daemon=True).start()
-    
-    # הפעלת הבוט
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
