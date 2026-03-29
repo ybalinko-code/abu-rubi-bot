@@ -11,7 +11,7 @@ translator = Translator()
 
 @app.route('/')
 def health():
-    return "OK", 200
+    return "Abu Rubi Online", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -21,23 +21,23 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         msg = update.channel_post or update.message
         if not msg or not (msg.text or msg.caption): return
-        text = msg.text or msg.caption
+        original_text = msg.text or msg.caption
         
-        # תרגום בסיסי
-        final_text = text
+        final_text = original_text
         try:
-            detect = translator.detect(text)
-            if detect.lang == 'ar':
-                trans = translator.translate(text, dest='he')
-                final_text = f"{trans.text}\n\n(תרגום אוטומטי)"
+            detection = translator.detect(original_text)
+            if detection.lang == 'ar':
+                translation = translator.translate(original_text, dest='he')
+                final_text = f"{translation.text}\n\n*(תרגום אוטומטי)*"
         except: pass
         
+        # שליחה אליך (לפי ה-ID שלך)
         await context.bot.send_message(chat_id="2405271", text=final_text)
-    except: pass
+    except Exception as e: print(f"Error: {e}")
 
 if __name__ == '__main__':
     threading.Thread(target=run_flask, daemon=True).start()
     token = "8748416579:AAF1ljRu-D2DWoTlxlZ254a0a8YPk_ZYmeo"
-    app_tg = ApplicationBuilder().token(token).build()
-    app_tg.add_handler(MessageHandler(filters.ALL, handle_update))
-    app_tg.run_polling()
+    application = ApplicationBuilder().token(token).build()
+    application.add_handler(MessageHandler(filters.ALL, handle_update))
+    application.run_polling()
