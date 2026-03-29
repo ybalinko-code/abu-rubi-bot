@@ -1,48 +1,24 @@
 import os
-import subprocess
-import sys
 import html
+import asyncio
 import threading
-import time
-from datetime import datetime, timedelta
-
-# --- התקנה אוטומטית של ספריות חסרות ---
-def install(package):
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-
-try:
-    import flask
-    from telegram import Update
-    from telegram.ext import Application, MessageHandler, filters, ContextTypes
-except ImportError:
-    install('python-telegram-bot==20.8')
-    install('Flask==3.0.0')
-    import flask
-    from telegram import Update
-    from telegram.ext import Application, MessageHandler, filters, ContextTypes
-
 from flask import Flask
+from telegram import Update
+from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
-# ==========================================
-# 1. הגדרות המערכת (הפרטים שלך)
-# ==========================================
-BOT_TOKEN = "7547012373:AAHkC5T08vO_Yw0P5I9G1K7S8R9Z0X1Y2Z3" # הטוקן שלך
-TARGET_GROUP_ID = "-1002484433680" # ה-ID של קבוצת הצוות
+# --- 1. הגדרת שרת Flask כדי להחזיק את Render בחיים ---
+app = Flask(__name__)
 
-# ==========================================
-# 2. שרת "השארת חיים" עבור Render
-# ==========================================
-server = Flask(__name__)
-@server.route('/')
-def home(): return "Abu Rubi Bot is ALIVE and Monitoring"
+@app.route('/')
+def health_check():
+    return "Bot is running and healthy", 200
 
-def run_server():
-    port = int(os.environ.get('PORT', 8080))
-    server.run(host='0.0.0.0', port=port)
+def run_flask():
+    # Render משתמש בפורט 10000 או מה שמוגדר ב-PORT
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
 
-# ==========================================
-# 3. נבחרת המקורות - שמות בעברית
-# ==========================================
+# --- 2. מילון שמות המקורות (הנבחרת שלך) ---
 SOURCE_MAPPING = {
     "arielidan14": "אריאל עידן",
     "Intellinews": "אינטליניוז",
@@ -54,26 +30,63 @@ SOURCE_MAPPING = {
     "Yair_Altman_channel14": "יאיר אלטמן"
 }
 
-recent_messages = []
-
-# ==========================================
-# 4. מנוע עיבוד וניקוי הודעות
-# ==========================================
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global recent_messages
+# --- 3. לוגיקת עיבוד וניקוי ההודעה ---
+async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        # שליפת ההודעה
-        message = update.channel_post or update.message
-        if not message or not message.text: return
+        # חילוץ הטקסט (מהודעות בערוץ או בקבוצה)
+        msg = update.channel_post or update.message
+        if not msg or not msg.text:
+            return
 
-        raw_text = message.text
-        chat_username = message.chat.username if message.chat else "Unknown"
+        # ניקוי ג'יבריש (HTML Entities)
+        clean_text = html.unescape(msg.text)
+        
+        # זיהוי מקור ותרגום לעברית
+        chat_username = update.effective_chat.username
+        source_name = SOURCE_MAPPING.get(chat_username, chat_username or "מקור לא ידוע")
 
-        # א. מניעת כפילויות (3 דקות)
-        current_time = time.time()
-        recent_messages = [m for m in recent_messages if current_time - m['time'] < 180]
-        text_sig = raw_text[:30]
-        if any(text_sig in m['text'] for m in recent_messages): return
-        recent_messages.append({'text': raw_text, 'time': current_time})
+        # עיצוב ההודעה הסופי
+        final_message = f"**מקור:** {source_name}\n\n{clean_text}"
 
-        # ב. ניקוי ג'יבריש (HTML Entities) ו
+        # שליחה לקבוצת הצוות שלך (החלף ב-ID האמיתי של הקבוצה)
+        # אם אין לך ID, הבוט ידפיס אותו ללוג כשתשלח לו הודעה
+        target_group_id = "-1002476906236" # דוגמה ל-ID, וודא שזה שלך
+        
+        await context.bot.send_message(
+            chat_id=target_group_id, 
+            text=final_message, 
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        print(f"Error processing message: {e}")
+
+# --- 4. התנעת המערכת ---
+async def main():
+    # הכנס כאן את ה-TOKEN שלך
+    token = "YOUR_BOT_TOKEN_HERE"
+    
+    application = ApplicationBuilder().token(token).build()
+    
+    # מאזין לכל סוגי ההודעות טקסט
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_update))
+    
+    # הפעלת הבוט
+    async with application:
+        await application.initialize()
+        await application.start()
+        print("Bot started successfully")
+        await application.updater.start_polling()
+        # מחזיק את הלולאה בחיים
+        while True:
+            await asyncio.sleep(3600)
+
+if __name__ == '__main__':
+    # הפעלת שרת ה-Web בשרשור נפרד
+    threading.Thread(target=run_flask, daemon=True).start()
+    
+    # הפעלת לולאת הטלגרם
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
