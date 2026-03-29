@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def health_check():
-    return "Bot is running and healthy", 200
+    return "Abu Rubi Bot is Online", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -32,7 +32,7 @@ SOURCE_MAPPING = {
 # --- 3. לוגיקת עיבוד וניקוי ההודעה ---
 async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        # שליפת הטקסט
+        # שליפת הטקסט (מהודעה בערוץ או בקבוצה)
         msg = update.channel_post or update.message
         if not msg or not msg.text:
             return
@@ -42,16 +42,16 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # זיהוי מקור והחלפה לעברית
         chat_username = update.effective_chat.username
-        source_name = SOURCE_MAPPING.get(chat_username, chat_username or "מקור לא ידוע")
+        source_name = SOURCE_MAPPING.get(chat_username, chat_username or "מקור חוץ")
 
-        # עיצוב ההודעה
+        # עיצוב ההודעה הסופי
         final_message = f"**מקור:** {source_name}\n\n{clean_text}"
 
-        # ה-ID הפרטי שלך שסיפקת
-        target_group_id = "2405271" 
+        # ה-ID הפרטי שלך (תחליף אותו ידנית בהמשך ל-ID של הקבוצה)
+        target_id = "2405271" 
         
         await context.bot.send_message(
-            chat_id=target_group_id, 
+            chat_id=target_id, 
             text=final_message, 
             parse_mode='Markdown'
         )
@@ -59,22 +59,22 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print(f"Error processing message: {e}")
 
-# --- 4. התנעת המנוע ---
+# --- 4. התנעת המנוע עם הטוקן החדש ---
 async def main():
-    # הטוקן שלך (נוקה מרווחים)
-    token = "8748416579:AAHLGyHreoktN10FSReH_nAUguVseDSli48"
+    # הטוקן החדש שקיבלת מה-BotFather
+    token = "8748416579:AAF1ljRu-D2DWoTlxlZ254a0a8YPk_ZYmeo"
     
     application = ApplicationBuilder().token(token).build()
     
-    # האזנה להודעות
+    # האזנה לכל הודעת טקסט
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_update))
     
-    # הפעלה אסינכרונית יציבה
     async with application:
         await application.initialize()
         await application.start()
-        print("Bot started successfully")
+        print("--- Bot Started Successfully with New Token ---")
         await application.updater.start_polling()
+        # שמירה על הבוט דולק
         while True:
             await asyncio.sleep(3600)
 
