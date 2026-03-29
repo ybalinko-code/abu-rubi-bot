@@ -1,4 +1,3 @@
-python-telegram-bot==20.3
-flask
+python-telegram-bot
 googletrans==4.0.0-rc1
-urllib3==1.26.15
+flask
