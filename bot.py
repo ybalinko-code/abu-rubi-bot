@@ -1,3 +1,9 @@
+import sys
+import types
+sys.modules['imghdr'] = types.ModuleType('imghdr')
+import os
+import html
+# ... וכו'
 import os
 import html
 import asyncio
